@@ -711,6 +711,46 @@ class ParameterHelper(object):
 
         return pdict_id
 
+    def create_scalar_star_pdict(self):
+        contexts = self.create_scalar_star_contexts()
+        context_ids = [i[1] for i in contexts.itervalues()]
+        pdict_id = self.dataset_management.create_parameter_dictionary('fstar_dict', parameter_context_ids=context_ids, temporal_context='time')
+        self.addCleanup(self.dataset_management.delete_parameter_dictionary, pdict_id)
+        return pdict_id
+
+    def create_scalar_star_contexts(self):
+        contexts = {}
+        t_ctxt = ParameterContext('time', param_type=QuantityType(value_encoding=np.dtype('float64')))
+        t_ctxt.uom = 'seconds since 1900-01-01'
+        t_ctxt_id = self.dataset_management.create_parameter_context(name='time', parameter_context=t_ctxt.dump())
+        self.addCleanup(self.dataset_management.delete_parameter_context, t_ctxt_id)
+        contexts['time'] = (t_ctxt, t_ctxt_id)
+        
+        temp_ctxt = ParameterContext('temp', param_type=QuantityType(value_encoding=np.dtype('float32')), fill_value=-9999)
+        temp_ctxt.uom = 'deg_C'
+        temp_ctxt_id = self.dataset_management.create_parameter_context(name='temp', parameter_context=temp_ctxt.dump())
+        self.addCleanup(self.dataset_management.delete_parameter_context, temp_ctxt_id)
+        contexts['temp'] = temp_ctxt, temp_ctxt_id
+
+        const_ctxt = ParameterContext('consts', param_type=QuantityType(value_encoding=np.dtype('float64')), fill_value=-99)
+        const_ctxt.uom = '1'
+        const_ctxt_id = self.dataset_management.create_parameter_context(name='consts', parameter_context=const_ctxt.dump())
+        self.addCleanup(self.dataset_management.delete_parameter_context, const_ctxt_id)
+        contexts['consts'] = const_ctxt, const_ctxt_id
+
+        func = PythonFunction('fstar','ion.services.dm.utility.test.parameter_helper','fstar', ['a','b*'])
+        func_id = self.dataset_management.create_parameter_function(name='fstar', parameter_function=func.dump())
+        self.addCleanup(self.dataset_management.delete_parameter_function, func_id)
+        
+        fmap = {'a':'temp', 'b*':'consts'}
+        func.param_map = fmap
+        fstar_ctxt = ParameterContext('fstar', param_type=ParameterFunctionType(func))
+        fstar_ctxt_id = self.dataset_management.create_parameter_context('fstar', parameter_context=fstar_ctxt.dump())
+        self.addCleanup(self.dataset_management.delete_parameter_context, fstar_ctxt_id)
+        contexts['fstar'] = fstar_ctxt, fstar_ctxt_id
+
+        return contexts
+
 
     def create_lookup_contexts(self):
         contexts = {}
@@ -769,3 +809,5 @@ class ParameterHelper(object):
 def matrix_offset(x,y):
     return x+y
 
+def fstar(a, b):
+    return a+b

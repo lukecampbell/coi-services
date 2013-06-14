@@ -285,3 +285,30 @@ class TestDMExtended(DMTestCase):
         np.testing.assert_array_equal(rdt['time'], np.array([0,1,2,3]))
         np.testing.assert_array_equal(rdt['temp_sample'], np.array([[0,1,2,3,4],[0,1,2,3,4],[1,m,m,m,m],[5,5,5,5,5]]))
         
+    @attr('INT', group='dm')
+    def test_fstar(self):
+        pdict_id = self.ph.create_scalar_star_pdict()
+        stream_def_id = self.create_stream_definition('fstar', parameter_dictionary_id=pdict_id)
+        dp_id = self.create_data_product('fstar', stream_def_id)
+        self.activate_data_product(dp_id)
+        dataset_id = self.RR2.find_dataset_id_of_data_product_using_has_dataset(dp_id)
+        rdt = self.ph.get_rdt(stream_def_id)
+
+        rdt['time'] = np.arange(10)
+        rdt['temp'] = np.arange(10)
+        rdt['consts'] = np.arange(10)
+
+        np.testing.assert_array_equal(rdt['fstar'], np.arange(10) + 9)
+
+        monitor = DatasetMonitor(dataset_id)
+        self.addCleanup(monitor.stop)
+        self.ph.publish_rdt_to_data_product(dp_id, rdt)
+        self.assertTrue(monitor.event.wait(10))
+
+        retrieved_granule = self.data_retriever.retrieve(dataset_id)
+        rdt = RecordDictionaryTool.load_from_granule(retrieved_granule)
+
+        np.testing.assert_array_equal(rdt['fstar'], np.arange(10) + 9)
+
+
+
