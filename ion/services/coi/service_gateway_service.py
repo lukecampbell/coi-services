@@ -3,8 +3,18 @@
 __author__ = 'Stephen P. Henrie'
 __license__ = 'Apache 2.0'
 
-import inspect, ast, simplejson, sys, traceback, string, copy
+import inspect
+import ast
+import simplejson
+import sys
+import traceback
+import string
+import copy
+import os
+import functools
+
 from flask import Flask, request, abort
+from werkzeug import secure_filename
 from gevent.wsgi import WSGIServer
 
 from pyon.public import IonObject, Container, OT
@@ -24,11 +34,12 @@ from interface.services.sa.idata_product_management_service import DataProductMa
 from pyon.util.log import log
 from pyon.util.lru_cache import LRUCache
 from pyon.util.containers import current_time_millis
+from pyon.util.file_sys import FileSystem, FS
 
 from pyon.agent.agent import ResourceAgentClient
 from interface.services.iresource_agent import ResourceAgentProcessClient
 from interface.objects import Attachment
-from interface.objects import ProposalStatusEnum, ProposalOriginatorEnum
+from interface.objects import ProposalStatusEnum, ProposalOriginatorEnum, Upload
 
 #Initialize the flask app
 service_gateway_app = Flask(__name__)
@@ -165,6 +176,16 @@ class ServiceGatewayService(BaseServiceGatewayService):
         This method is a callback function for when an event is received to clear the user data cache
         '''
         self.user_role_cache.clear()
+
+
+def except_wrapper(func):
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except Exception as e:
+            return build_error_response(e)
+    return wrapper
 
 @service_gateway_app.errorhandler(403)
 def custom_403(error):
@@ -895,4 +916,39 @@ def resolve_org_negotiation():
 
     except Exception, e:
         return build_error_response(e)
+
+
+
+
+@service_gateway_app.route('/ion-service/file-upload', methods=['POST'])
+@except_wrapper
+def upload_file():
+    container = Container.instance
+    event_publisher = EventPublisher(OT.UploadEvent)
+    upload_folder = FileSystem.get_url(FS.FILESTORE, 'uploads')
+    # Allowed Extensions
+    allowed_extensions = { 'dat', 'egg', 'yml' }
+    allowed = lambda x : '.' in x and x.rsplit('.', 1)[1] in allowed_extensions
+    print 'yo'
+
+    file = request.files['file']
+    if file and allowed(file.filename) and 'filetype' in request.form:
+        filename = secure_filename(file.filename)
+        filepath = os.path.join(upload_folder, filename)
+        filetype = request.form.get('type', '')
+        if os.path.exists(filepath):
+            raise IOError("[Errno 17] File exists: '%s'" % filename)
+
+        file.save(os.path.join(upload_folder, filename))
+
+        upload = Upload(name=filename, path=filepath, date=0.0, filetype=filetype)
+        upload_id, rev = container.resource_registry.create(upload)
+        event_publisher.publish_event(origin=upload_id, filepath=filepath, filetype=filetype)
+
+        response = {'upload_status': 'ok'}
+        return gateway_json_response(response)
+    response = {'upload_status': 'fail'}
+    return gateway_json_response(response)
+
+
 

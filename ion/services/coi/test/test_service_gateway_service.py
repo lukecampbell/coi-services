@@ -21,6 +21,7 @@ from pyon.event.event import EventPublisher
 from pyon.util.containers import DictDiffer
 from pyon.util.log import log
 from pyon.public import OT
+from tempfile import gettempdir
 
 import unittest
 import os, io
@@ -677,4 +678,21 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
         #log.debug('test_data_provenance_retrieve  response:  %s', response)
 
         self.assertIsNotNone(response)
+
+    def test_upload(self):
+        tmpdir = gettempdir()
+        upload_file = os.path.join(tmpdir, 'example.yml')
+        if os.path.exists(upload_file):
+            raise IOError("[Errno 17] File exists: '%s'" % upload_file)
+        with open(upload_file, 'w') as f:
+            f.write('hello:\n  work: 1\n')
+        self.addCleanup(os.remove,upload_file)
+
+        with open(upload_file, 'r') as f:
+            response = self.test_app.post('/ion-service/file-upload', {'filetype': 'text/yml'}, upload_files=[('file', 'example.yml', f.read())])
+
+        self.assertIsNotNone(response)
+
+
+
 
