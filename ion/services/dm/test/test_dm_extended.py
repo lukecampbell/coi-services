@@ -132,12 +132,11 @@ class TestDMExtended(DMTestCase):
         config.loadui=True
         config.ui_path =  "http://userexperience.oceanobservatories.org/database-exports/Candidates"
         config.attachments = "res/preload/r2_ioc/attachments"
-        config.scenario = 'BETA,CTDPF'
+        config.scenario = 'BETA,CTDGV'
         config.path = 'master'
         #config.categories='ParameterFunctions,ParameterDefs,ParameterDictionary,StreamDefinition,DataProduct'
         self.container.spawn_process('preloader', 'ion.processes.bootstrap.ion_loader', 'IONLoader', config)
         self.container.spawn_process('import_dataset', 'ion.processes.data.import_dataset', 'ImportDataset', {'op':'load', 'instrument':'CTDPF'})
-
 
     def preload_lctest(self):
         config = DotDict()
@@ -160,6 +159,18 @@ class TestDMExtended(DMTestCase):
         config.path = 'master'
         config.categories='ParameterFunctions,ParameterDefs,ParameterDictionary'
         self.container.spawn_process('preloader', 'ion.processes.bootstrap.ion_loader', 'IONLoader', config)
+
+    def preload_ctdgv(self):
+        config = DotDict()
+        config.op = 'load'
+        config.loadui=True
+        config.ui_path =  "http://userexperience.oceanobservatories.org/database-exports/Candidates"
+        config.attachments = "res/preload/r2_ioc/attachments"
+        config.scenario = 'BETA,CTDGV'
+        config.path = 'master'
+        #config.categories='ParameterFunctions,ParameterDefs,ParameterDictionary,StreamDefinition,DataProduct'
+        self.container.spawn_process('preloader', 'ion.processes.bootstrap.ion_loader', 'IONLoader', config)
+        self.container.spawn_process('import_dataset', 'ion.processes.data.import_dataset', 'ImportDataset', {'op':'load', 'instrument':'CTDGV'})
 
     def preload_ui(self):
         config = DotDict()
@@ -537,6 +548,22 @@ class TestDMExtended(DMTestCase):
         dataset_id = self.RR2.find_dataset_id_of_data_product_using_has_dataset(data_product_id)
         breakpoint(locals(), globals())
 
+    @attr("UTIL")
+    def test_ctdgv(self):
+        import os
+        #import shutil
+        from zipfile import ZipFile
+        if not os.path.exists('/tmp/dsatest'):
+            os.makedirs('/tmp/dsatest')
+
+        with ZipFile('test_data/glider_data_files.zip','r') as zf:
+            for f in zf.infolist():
+                zf.extract(f, '/tmp/dsatest')
+        self.preload_ctdgv()
+        #data_product_ids, _ = self.container.resource_registry.find_resources_ext(alt_id='DPROD118', alt_id_ns='PRE')
+        #data_product_id = data_product_ids[0]
+        #dataset_id = self.RR2.find_dataset_id_of_data_product_using_has_dataset(data_product_id)
+        breakpoint(locals(), globals())
 
     @attr("UTIL")
     def test_out_of_order(self):
