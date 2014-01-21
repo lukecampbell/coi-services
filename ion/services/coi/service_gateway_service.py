@@ -27,8 +27,11 @@ from pyon.util.containers import current_time_millis
 
 from pyon.agent.agent import ResourceAgentClient
 from interface.services.iresource_agent import ResourceAgentProcessClient
-from interface.objects import Attachment
+from interface.objects import Attachment, FileUploadContext
 from interface.objects import ProposalStatusEnum, ProposalOriginatorEnum
+
+import os
+import time
 
 #Initialize the flask app
 service_gateway_app = Flask(__name__)
@@ -895,4 +898,33 @@ def resolve_org_negotiation():
 
     except Exception, e:
         return build_error_response(e)
+
+@service_gateway_app.route('/ion-service/upload', methods=['GET', 'POST'])
+def file_upload():
+
+    upload_folder = '/tmp/uploads'
+
+    try:
+        rr_client = ResourceRegistryServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
+        if request.method == 'POST':
+            upload = request.files['upload']
+            if upload and allowed_file(upload.filename):
+                filename = secure_filename(upload.filename)
+                path = os.path.join(upload_folder, filename)
+                upload_time = time.time()
+                context_id, _ = rr_client.create(FileUploadContext(name='File Upload %s' % filename, filename=filename, path=path, upload_time=upload_time))
+                upload.save(path)
+                resp = {'context_id': context_id}
+                print 'Upload saved to', path
+                print 'context:', context_id
+                return gateway_json_response(resp)
+        raise BadRequest('Invalid Upload')
+    except Exception as e:
+        return build_error_response(e)
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1] in ['mat']
+
+def secure_filename(filename):
+    return filename
 

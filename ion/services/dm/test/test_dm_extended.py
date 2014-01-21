@@ -27,6 +27,7 @@ import unittest
 import numpy as np
 import time
 import gevent
+import requests
 
 class TestDMExtended(DMTestCase):
     '''
@@ -1115,7 +1116,15 @@ class TestDMExtended(DMTestCase):
             buf = f.read()
         self.assertIn(data_product_id, buf)
 
+    @attr("UTIL")
+    def test_upload(self):
+        test_data_path = 'test_data/example.mat'
 
+        with open(test_data_path, 'r') as f:
+            r = requests.post('http://localhost:5000/ion-service/upload', files={'upload':('example.mat', f)})
+        context_id = r.json()['data']['GatewayResponse']['context_id'].encode('ascii')
+
+        breakpoint(locals(), globals())
 
         
 

@@ -590,3 +590,20 @@ class DatasetManagementService(BaseDatasetManagementService):
                 pdict.add_context(context)
         return pdict
 
+    def get_upload_info(self, context_id):
+        from ion.util.parsers.matlab import matlab_parser
+        file_upload_context = self.clients.resource_registry.read(context_id)
+        path = file_upload_context.path
+        array_count, array_len, names = matlab_parser(path)
+        meta = {'array_count':array_count, 'array_length': array_len, 'array_names': names}
+        file_upload_context.meta.update(meta)
+        self.clients.resource_registry.update(file_upload_context)
+        return meta
+
+    def destroy_upload(self, context_id):
+        file_upload_context = self.clients.resource_registry.read(context_id)
+        if os.path.exists(file_upload_context.path):
+            os.remove(file_upload_context.path)
+            print 'removed file', file_upload_context.path
+        self.clients.resource_registry.delete(context_id)
+
