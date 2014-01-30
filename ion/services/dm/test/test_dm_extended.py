@@ -16,6 +16,7 @@ from ion.util.direct_coverage_utils import DirectCoverageAccess
 from ion.services.dm.utility.hydrophone_simulator import HydrophoneSimulator
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 from ion.processes.data.registration.registration_process import RegistrationProcess
+from coverage_model import NumexprFunction
 from nose.plugins.attrib import attr
 from pyon.util.breakpoint import breakpoint
 from pyon.util.file_sys import FileSystem
@@ -1226,5 +1227,29 @@ def rotate_v(u,v,theta):
         os.remove(egg)
 
 
+    @attr("INT")
+    def test_function_processing(self):
+        data_product_id = self.make_ctd_data_product()
+        dataset_id = self.RR2.find_dataset_id_of_data_product_using_has_dataset(data_product_id)
+        dataset_monitor = DatasetMonitor(dataset_id)
+        self.addCleanup(dataset_monitor.stop)
 
+        rdt = self.ph.rdt_for_data_product(data_product_id)
+        rdt['time'] = np.arange(30)
+        rdt['temp'] = np.arange(30)
+        self.ph.publish_rdt_to_data_product(data_product_id, rdt)
+        self.assertTrue(dataset_monitor.event.wait(10))
+        dataset_monitor.event.clear()
+
+        offset = NumexprFunction('offset', 'x + 1', ['x'])
+        func_id = self.dataset_management.create_parameter_function(name='offset', parameter_function=offset.dump())
+        self.addCleanup(self.dataset_management.delete_parameter_function,func_id)
+
+        from example import ExampleDataProcess
+        dp = ExampleDataProcess(self.container, rdt)
+        dp.add_function('offset', func_id, {'x':'temp'})
+        breakpoint(locals(), globals())
+
+    
+        
 
