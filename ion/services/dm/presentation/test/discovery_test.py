@@ -430,12 +430,9 @@ class DiscoveryUnitTest(PyonTestCase):
 class DiscoveryIntTest(IonIntegrationTestCase):
     def setUp(self):
         super(DiscoveryIntTest, self).setUp()
-        config = DotDict()
-        config.bootstrap.use_es = True
 
         self._start_container()
-        self.addCleanup(DiscoveryIntTest.es_cleanup)
-        self.container.start_rel_from_url('res/deploy/r2deploy.yml', config)
+        self.container.start_rel_from_url('res/deploy/r2deploy.yml')
 
         self.discovery               = DiscoveryServiceClient()
         self.catalog                 = CatalogManagementServiceClient()
@@ -444,37 +441,6 @@ class DiscoveryIntTest(IonIntegrationTestCase):
         self.dataset_management      = DatasetManagementServiceClient()
         self.pubsub_management       = PubsubManagementServiceClient()
         self.data_product_management = DataProductManagementServiceClient()
-
-    @staticmethod
-    def es_cleanup():
-        es_host = CFG.get_safe('server.elasticsearch.host', 'localhost')
-        es_port = CFG.get_safe('server.elasticsearch.port', '9200')
-        es = ep.ElasticSearch(
-            host=es_host,
-            port=es_port,
-            timeout=10
-        )
-        indexes = STD_INDEXES.keys()
-        indexes.append('%s_resources_index' % get_sys_name().lower())
-        indexes.append('%s_events_index' % get_sys_name().lower())
-
-        for index in indexes:
-            IndexManagementService._es_call(es.river_couchdb_delete,index)
-            IndexManagementService._es_call(es.index_delete,index)
-
-
-    def poll(self, tries, callback, *args, **kwargs):
-        '''
-        Polling wrapper for queries
-        Elasticsearch may not index and cache the changes right away so we may need 
-        a couple of tries and a little time to go by before the results show.
-        '''
-        for i in xrange(tries):
-            retval = callback(*args, **kwargs)
-            if retval:
-                return retval
-            time.sleep(0.2)
-        return None
 
 
     @skipIf(cfg_datastore != "couchdb", "POSTGRES")
@@ -561,8 +527,6 @@ class DiscoveryIntTest(IonIntegrationTestCase):
         catalog_ids = self.discovery.list_catalogs(view_id)
         self.assertTrue(catalog_ids != [catalog_id])
 
-    @skipIf(cfg_datastore != "couchdb", "POSTGRES")
-    @skipIf(not use_es, 'No ElasticSearch')
     def test_basic_searching(self):
 
         #- - - - - - - - - - - - - - - - - 
@@ -577,11 +541,12 @@ class DiscoveryIntTest(IonIntegrationTestCase):
         for instrument in instrument_pool:
             self.rr.create(instrument)
 
-        view_id = self.discovery.create_view('devices', fields=['firmware_version'])
 
-        search_string = "search 'firmware_version' is '2' from '%s'"%view_id
-        results = self.poll(5, self.discovery.parse,search_string)
-        result  = results[0]['_source']
+        search_string = "search 'firmware_version' is '2' from 'resources_index'"
+        results = self.discovery.parse(search_string)
+        result_id  = results[0]
+        result = self.rr.read(result_id)
+
         self.assertIsInstance(result, InstrumentDevice)
         self.assertTrue(result.name == 'sonobuoy2')
         self.assertTrue(result.firmware_version == '2')
