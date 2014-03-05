@@ -13,6 +13,7 @@ Supports the following ops:
 - suspend_persistence: suspend persistence for the data products of the devices
 - recover_data: requires start and stop dates, issues reachback command for instrument agents.  Running this command
                 against other agents will get a warning.
+- set_calibration: add or replace calibration information for devices and their data products
 
 Resource ids (uuid) can be used instead of names.
 
@@ -20,19 +21,21 @@ start and stop date must be floating point strings representing seconds since 19
 
 Invoke via command line like this:
     bin/pycc -x ion.agents.agentctrl.AgentControl instrument='CTDPF'
-    bin/pycc -x ion.agents.agentctrl.AgentControl instrument='CTDPF' op=recover_data recover_start=0.0, recover_end=1.0
     bin/pycc -x ion.agents.agentctrl.AgentControl device_name='uuid' op=start activate=False
     bin/pycc -x ion.agents.agentctrl.AgentControl agent_name='uuid' op=stop
     bin/pycc -x ion.agents.agentctrl.AgentControl platform='uuid' op=start recurse=True
     bin/pycc -x ion.agents.agentctrl.AgentControl platform='uuid' op=config_instance cfg=file.csv recurse=True
+    bin/pycc -x ion.agents.agentctrl.AgentControl platform='uuid' op=set_calibration cfg=file.csv recurse=True
+    bin/pycc -x ion.agents.agentctrl.AgentControl instrument='CTDPF' op=recover_data recover_start=0.0 recover_end=1.0
     and others (see Confluence page)
 TODO:
+- Ability to apply to all platforms (maybe a facility/site), not just one
 - Reset agent
 - Support for instrument and platform agents
 - Force terminate agents
 """
 
-__author__ = 'Michael Meisinger, Ian Katz'
+__author__ = 'Michael Meisinger, Ian Katz, Bill French'
 
 import csv
 
@@ -54,16 +57,14 @@ class AgentControl(ImmediateProcess):
         self.rr = self.container.resource_registry
 
         self.op = self.CFG.get("op", "start")
-        if self.op not in {"start", "stop", "config_instance", "activate_persistence", "suspend_persistence", "recover_data"}:
+        if self.op not in {"start", "stop", "config_instance", "activate_persistence", "suspend_persistence",
+                           "recover_data", "set_calibration"}:
             raise BadRequest("Operation %s unknown", self.op)
 
         dataset_name = self.CFG.get("dataset", None)
         device_name = self.CFG.get("device_name", None) or self.CFG.get("instrument", None) or self.CFG.get("platform", None)
         agent_name = self.CFG.get("agent_name", None)
         resource_name = dataset_name or device_name or agent_name
-
-        self.recover_start = self.CFG.get("recover_start", None)
-        self.recover_end = self.CFG.get("recover_end", None)
 
         self.recurse = self.CFG.get("recurse", False)
         self.cfg_mappings = {}
@@ -136,6 +137,8 @@ class AgentControl(ImmediateProcess):
                 self._suspend_persistence(agent_instance_id, resource_id)
             elif self.op == "config_instance":
                 self._config_instance(agent_instance_id, resource_id)
+            elif self.op == "set_calibration":
+                self._set_calibration(agent_instance_id, resource_id)
             elif self.op == "recover_data":
                 self._recover_data(agent_instance_id, resource_id)
 
@@ -246,7 +249,7 @@ class AgentControl(ImmediateProcess):
         elif res_obj.type_ == RT.PlatformDevice:
             ims = InstrumentManagementServiceClient()
             try:
-                ims.stop_platfrom_agent_instance(agent_instance_id)
+                ims.stop_platform_agent_instance(agent_instance_id)
             except NotFound:
                 log.warn("Agent for resource %s not found", resource_id)
         else:
@@ -293,6 +296,55 @@ class AgentControl(ImmediateProcess):
 
         self.rr.update(edai)
 
+    def _set_calibration(self, agent_instance_id, resource_id):
+        if not agent_instance_id:
+            log.warn("Could not %s agent %s for device %s", self.op, agent_instance_id, resource_id)
+            return
+
+        cfg_file = self.CFG.get("cfg", None)
+        if not cfg_file:
+            raise BadRequest("No cfg argument provided")
+
+        if not self.cfg_mappings:
+            self.cfg_mappings = {}
+
+            with open(cfg_file, "rU") as f:
+                reader = csv.DictReader(f, delimiter=',')
+                for row in reader:
+                    device_id = row["ID"]
+                    param_name = row["Name"]
+                    self.cfg_mappings.setdefault(device_id, {})[param_name] = {k:v for k, v in row.iteritems() if k not in {"ID", "Name", "Value"}}
+                    self.cfg_mappings[device_id][param_name]["value"] = row["Value"]  # Make sure it exists
+
+        res_obj = self.rr.read(resource_id)
+
+        # Device has no reference designator - but use preload ID as reference designator
+        alt_ids = [aid[4:-3] for aid in res_obj.alt_ids if aid.startswith("PRE:") and aid.endswith("_ID")]
+        device_rd = alt_ids[0] if alt_ids else None
+
+        dev_cfg = self.cfg_mappings.get(resource_id, None) or self.cfg_mappings.get(device_rd, None)
+        if not dev_cfg:
+            return
+        log.info("Setting calibration for device %s (RD %s) '%s': %s", resource_id, device_rd, res_obj.name, dev_cfg)
+
+        # Find parsed data product from device id
+        dp_objs, _ = self.rr.find_objects(resource_id, PRED.hasOutputProduct, RT.DataProduct, id_only=False)
+        dp_objs_filtered = [dp for dp in dp_objs if dp.processing_level_code == "Parsed"]
+        for dp_obj in dp_objs_filtered:
+            self._set_calibration_for_data_product(dp_obj, dev_cfg)
+
+        log.info("Calibration set for device %s (RD %s) '%s'", resource_id, device_rd, res_obj.name)
+
+    def _set_calibration_for_data_product(self, dp_obj, dev_cfg):
+        # TODO Luke:
+        # Call a utility class that does the following:
+        # - Check all calibration coefficients are in dev_cfg dict
+        # - Get exclusive access to coverage (e.g. stop ingestion)
+        # - Perform value type checking, maybe conversion
+        # - Enter calibration into coverage
+
+        log.info("Calibration set for data product '%s'", dp_obj.name)
+
     def _activate_persistence(self, agent_instance_id, resource_id):
         if not agent_instance_id or not resource_id:
             log.warn("Could not %s agent %s for device %s", self.op, agent_instance_id, resource_id)
@@ -328,6 +380,9 @@ class AgentControl(ImmediateProcess):
             log.warn("Ignoring resource because it is not an instrument: %s - %s", res_obj.name, res_obj.type_)
             self._recover_data_status['ignored'].append("%s (%s)" % (res_obj.name, res_obj.type_))
             return
+
+        self.recover_start = self.CFG.get("recover_start", None)
+        self.recover_end = self.CFG.get("recover_end", None)
 
         if self.recover_end is None:
             raise BadRequest("Missing recover_end parameter")
