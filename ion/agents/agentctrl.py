@@ -40,7 +40,8 @@ __author__ = 'Michael Meisinger, Ian Katz, Bill French'
 import csv
 
 from pyon.agent.agent import ResourceAgentClient, ResourceAgentEvent
-from pyon.public import RT, log, PRED, ImmediateProcess, BadRequest, NotFound
+from pyon.ion.event import EventPublisher
+from pyon.public import RT, log, PRED, OT, ImmediateProcess, BadRequest, NotFound
 
 from ion.core.includes.mi import DriverEvent
 from ion.util.parse_utils import parse_dict
@@ -319,7 +320,7 @@ class AgentControl(ImmediateProcess):
         res_obj = self.rr.read(resource_id)
 
         # Device has no reference designator - but use preload ID as reference designator
-        alt_ids = [aid[4:-3] for aid in res_obj.alt_ids if aid.startswith("PRE:") and aid.endswith("_ID")]
+        alt_ids = [aid[4:] for aid in res_obj.alt_ids if aid.startswith("PRE:ID")]
         device_rd = alt_ids[0] if alt_ids else None
 
         dev_cfg = self.cfg_mappings.get(resource_id, None) or self.cfg_mappings.get(device_rd, None)
@@ -336,6 +337,8 @@ class AgentControl(ImmediateProcess):
         log.info("Calibration set for device %s (RD %s) '%s'", resource_id, device_rd, res_obj.name)
 
     def _set_calibration_for_data_product(self, dp_obj, dev_cfg):
+        from ion.util.direct_coverage_utils import DirectCoverageAccess
+        from coverage_model import SparseConstantType
         # TODO Luke:
         # Call a utility class that does the following:
         # - Check all calibration coefficients are in dev_cfg dict
@@ -344,6 +347,21 @@ class AgentControl(ImmediateProcess):
         # - Enter calibration into coverage
 
         log.info("Calibration set for data product '%s'", dp_obj.name)
+        dataset_ids, _ = self.rr.find_objects(dp_obj,PRED.hasDataset, id_only=True)
+        publisher = EventPublisher(OT.InformationContentModifiedEvent)
+        for dataset_id in dataset_ids:
+            # Synchronize with ingestion
+            with DirectCoverageAccess() as dca:
+                cov = dca.get_editable_coverage(dataset_id)
+                # Iterate over the calibrations
+                for cal_name, contents in dev_cfg.iteritems():
+                    if cal_name in cov.list_parameters() and isinstance(cov.get_parameter_context(cal_name).param_type, SparseConstantType):
+                        value = float(contents['value'])
+                        cov.set_parameter_values(cal_name, value)
+                    else:
+                        log.warning("Calibration %s not found in dataset", cal_name)
+                publisher.publish_event(origin=dataset_id, description="Calibrations Updated")
+        publisher.close()
 
     def _activate_persistence(self, agent_instance_id, resource_id):
         if not agent_instance_id or not resource_id:
