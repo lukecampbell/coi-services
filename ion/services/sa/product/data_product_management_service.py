@@ -700,6 +700,26 @@ class DataProductManagementService(BaseDataProductManagementService):
 
         return provenance_image.getvalue()
 
+    def add_parameter_to_data_product(self, parameter_id='', data_product_id=''):
+        '''
+        Performs the necessary actions to add a parameter to a data product
+        '''
+        stream_definition_ids, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasStreamDefinition, id_only=True)
+        if not stream_definition_ids:
+            raise BadRequest("Data product %s doesn't have an associated stream definition" % data_product_id)
+        stream_definition_id = stream_definition_ids[0]
+        pdict_ids, _ = self.clients.resource_registry.find_objects(stream_definition_id, PRED.hasParameterDictionary, id_only=True)
+        if not pdict_ids:
+            raise BadRequest("Data product %s doesn't have an associated parameter dictionary" % data_product_id)
+        pdict_id = pdict_ids[0]
+        
+        # Add the parameter to the pdict
+        self.clients.resource_registry.create_association(subject=pdict_id, predicate=PRED.hasParameterContext, object=parameter_id)
+
+        dataset_ids, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasDataset, id_only=True)
+        for dataset_id in dataset_ids:
+            self.clients.dataset_management.add_parameter_to_dataset(parameter_id, dataset_id)
+
 
 
     ############################

@@ -18,9 +18,9 @@ from ion.services.dm.utility.hydrophone_simulator import HydrophoneSimulator
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 from ion.services.dm.utility.provenance import graph
 from ion.processes.data.registration.registration_process import RegistrationProcess
-from coverage_model import ParameterFunctionType, ParameterDictionary, PythonFunction, ParameterContext
+from coverage_model import ParameterFunctionType, ParameterDictionary, PythonFunction, ParameterContext as CovParameterContext
 from ion.processes.data.transforms.transform_worker import TransformWorker
-from interface.objects import DataProcessDefinition, InstrumentDevice
+from interface.objects import DataProcessDefinition, InstrumentDevice, ParameterFunction, ParameterFunctionType as PFT , ParameterContext
 from nose.plugins.attrib import attr
 from pyon.util.breakpoint import breakpoint
 from pyon.event.event import EventSubscriber
@@ -238,6 +238,14 @@ class TestDMExtended(DMTestCase):
 
     def preload_indexes(self):
         pass
+
+    def launch_agent_calibrations(self, instrument, calibrations):
+        config = DotDict()
+        config.op = 'set_calibration'
+        config.cfg = calibrations
+        config.instrument = instrument
+
+        self.container.spawn_process('agent_control', 'ion.agents.agentctrl', 'AgentControl', config)
 
     def launch_ui_facepage(self, data_product_id):
         '''
@@ -1186,6 +1194,85 @@ class TestDMExtended(DMTestCase):
             pass
         breakpoint(locals(), globals())
 
+    @attr("UTIL")
+    def test_agent_calibrations(self):
+        '''
+        Tests the agent control calibration setting by
+
+            1. Preload the instrument
+            2. Create the necessary parameters so that it HAS a calibration and a function that uses it
+            3. Apply the calibrations
+            4. Send some data
+            5. Verify
+        '''
+        # 1. Preload the instrument
+        self.preload_full_beta()
+        data_product_id = self.data_product_by_id('DPROD85')
+        dataset_id =  self.resource_registry.find_objects(data_product_id, PRED.hasDataset, id_only=True)[0][0]
+
+        # 2. Create the necessary parameters so that it HAS a calibration and a function that uses it
+        params = []
+
+        # Create the calibration coefficient sparse value
+        param = ParameterContext(name='cc_a', parameter_type='sparse', value_encoding='float32', units='1')
+        param_id = self.dataset_management.create_parameter(param)
+        params.append(param_id)
+
+        # Create the calibration offset sparse value
+        param = ParameterContext(name='cc_b', parameter_type='sparse', value_encoding='float32', units='1')
+        param_id = self.dataset_management.create_parameter(param)
+        params.append(param_id)
+
+        # Create a function that will calibrate a signal
+        func = ParameterFunction(name='linear_correct', 
+                                 function_type=PFT.NUMEXPR,
+                                 function='coeff * x + offset',
+                                 args=['x','coeff', 'offset'])
+        func_id = self.dataset_management.create_parameter_function(func)
+
+        param = ParameterContext(name='temp_corrected',
+                                 parameter_type='function',
+                                 parameter_function_id=func_id,
+                                 parameter_function_map={'x':'temp', 'coeff':'cc_a', 'offset':'cc_b'},
+                                 value_encoding='float32',
+                                 units='deg_C')
+        param_id = self.dataset_management.create_parameter(param)
+        params.append(param_id)
+
+        for param in params:
+            self.data_product_management.add_parameter_to_data_product(param, data_product_id)
+
+        timeout = CFG.get_safe('endpoint.receive.timeout', 10)
+        verified = Event()
+        event_subscriber = EventSubscriber(event_type=OT.InformationContentModifiedEvent,origin=dataset_id,callback = lambda *args, **kwargs : verified.set(), auto_delete=True)
+        event_subscriber.start()
+        self.addCleanup(event_subscriber.stop)
+
+        # 3. Apply the calibrations
+        # Run the agent thing
+        self.launch_agent_calibrations('SBE Simulator', 'test_data/sbe-simulator-calibrations.csv')
+
+        # Make sure that it published an event marking its success
+        self.assertTrue(verified.wait(timeout))
+
+        # 4. Send some data
+        # Publish some data like the agent would
+        dataset_monitor = DatasetMonitor(data_product_id=data_product_id) 
+        self.addCleanup(dataset_monitor.stop)
+
+        rdt = self.ph.rdt_for_data_product(data_product_id)
+        rdt['time'] = [0, 1]
+        rdt['temp'] = [12, 11]
+        self.ph.publish_rdt_to_data_product(data_product_id, rdt)
+        self.assertTrue(dataset_monitor.wait())
+
+        # 5. Verify
+        dataset_id = self.RR2.find_dataset_id_of_data_product_using_has_dataset(data_product_id)
+        granule = self.data_retriever.retrieve(dataset_id)
+        rdt = RecordDictionaryTool.load_from_granule(granule)
+        np.testing.assert_allclose(rdt['temp_corrected'], np.array([8., 7.5],dtype=np.float32))
+
+
     @attr("INT")
     def test_catalog_repair(self):
         data_product_id = self.make_ctd_data_product()
@@ -1425,7 +1512,7 @@ def rotate_v(u,v,theta):
         expr_id = self.dataset_management.create_parameter_function(name='fail', parameter_function=expr.dump())
         self.addCleanup(self.dataset_management.delete_parameter_function, expr_id)
         expr.param_map = {'x':'temp'}
-        failure_ctx = ParameterContext('failure', param_type=ParameterFunctionType(expr))
+        failure_ctx = CovParameterContext('failure', param_type=ParameterFunctionType(expr))
         failure_ctx.uom = '1'
         failure_ctxt_id = self.dataset_management.create_parameter_context(name='failure', parameter_context=failure_ctx.dump(), parameter_function_id=expr_id)
         self.addCleanup(self.dataset_management.delete_parameter_context, failure_ctxt_id)
