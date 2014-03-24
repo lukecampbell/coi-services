@@ -1497,3 +1497,24 @@ def rotate_v(u,v,theta):
         with self.assertRaises(NotFound):
             self.data_product_management.read_catalog_entry(data_product_id)
 
+    @attr("UTIL")
+    def test_data_upload(self):
+        # Make a CTD data product
+        data_product_id = self.make_ctd_data_product()
+        # Push some data
+        rdt = self.ph.rdt_for_data_product(data_product_id)
+        t0 = 2208988800 # 1970-01-01
+        rdt['time'] = np.arange(t0, t0+10)
+        rdt['temp'] = np.arange(10)
+        rdt['conductivity'] = np.arange(10)
+
+        # Make sure the data was ingested
+        dataset_monitor = DatasetMonitor(data_product_id=data_product_id)
+        self.addCleanup(dataset_monitor.stop)
+        self.ph.publish_rdt_to_data_product(data_product_id, rdt)
+        self.assertTrue(dataset_monitor.wait())
+
+        # Break
+        breakpoint(locals(), globals())
+
+
