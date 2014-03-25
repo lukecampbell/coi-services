@@ -4,6 +4,14 @@
 @file ion/services/dm/test/test_dm_extended.py
 @description Resting place for tests that validate the extended functionalities of DM
 '''
+from pyon.util.breakpoint import breakpoint
+from pyon.core.exception import NotFound
+from pyon.event.event import EventSubscriber
+from pyon.util.file_sys import FileSystem
+from pyon.public import IonObject, RT, CFG, PRED, OT
+from pyon.util.containers import DotDict
+from pyon.net.endpoint import RPCClient
+from pyon.util.log import log
 
 from ion.services.dm.test.dm_test_case import DMTestCase, Streamer
 from ion.processes.data.transforms.viz.google_dt import VizTransformGoogleDTAlgorithm
@@ -22,17 +30,9 @@ from coverage_model import ParameterFunctionType, ParameterDictionary, PythonFun
 from ion.processes.data.transforms.transform_worker import TransformWorker
 from interface.objects import DataProcessDefinition, InstrumentDevice, ParameterFunction, ParameterFunctionType as PFT 
 from nose.plugins.attrib import attr
-from pyon.util.breakpoint import breakpoint
-from pyon.core.exception import NotFound
-from pyon.event.event import EventSubscriber
-from pyon.util.file_sys import FileSystem
-from pyon.public import IonObject, RT, CFG, PRED, OT
-from pyon.util.containers import DotDict
 from pydap.client import open_url
 from shutil import rmtree
 from datetime import datetime, timedelta
-from pyon.net.endpoint import RPCClient
-from pyon.util.log import log
 import lxml.etree as etree
 import simplejson as json
 import pkg_resources
