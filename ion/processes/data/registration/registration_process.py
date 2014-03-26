@@ -86,6 +86,7 @@ class RegistrationProcess(StandaloneProcess):
         return path
 
     def setup_filesystem(self, path):
+        print "I'm setting up the filesystem"
         template = self.jenv.get_template('datasets.xml')
         buff = template.render()
         if not os.path.exists(path):
@@ -94,8 +95,12 @@ class RegistrationProcess(StandaloneProcess):
 
         doc = self.container.directory.lookup(self.catalog_dir_path)
         if not doc:
+            print "The doc didn't exist, so I'm going to make it"
             doc = {'xml':buff}
             self.container.directory.register(*os.path.split(self.catalog_dir_path), **doc)
+            print  "Here's the catalog"
+            print "%s" % self.container.directory.lookup(self.catalog_dir_path)
+
 
 
 
@@ -209,6 +214,7 @@ class RegistrationProcess(StandaloneProcess):
         ds = walk(ds, self.xml_escape)
         return ds
 
+    @debug_wrapper
     def create_entry(self, data_product_id):
         '''
         Create a catalog entry for a data product
@@ -218,7 +224,10 @@ class RegistrationProcess(StandaloneProcess):
 
         template = self.jenv.get_template('dataset.xml')
         entry = template.render(**ds)
+
         doc = self.container.directory.lookup(self.catalog_dir_path)
+        print "Now here's the other doc: ", repr(doc)
+        
         #doc = self.container.object_store.read('datasets.xml')
         root = etree.fromstring(doc['xml'])
         dataset_element = etree.fromstring(entry)
