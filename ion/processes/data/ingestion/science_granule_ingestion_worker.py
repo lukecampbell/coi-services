@@ -83,8 +83,8 @@ class ScienceGranuleIngestionWorker(TransformStreamListener, BaseIngestionWorker
         #--------------------------------------------------------------------------------
 
         BaseIngestionWorker.on_start(self)
-        self._rpc_server = self.container.proc_manager._create_listening_endpoint(from_name=self.id, process=self)
-        self.add_endpoint(self._rpc_server)
+        #self._rpc_server = self.container.proc_manager._create_listening_endpoint(from_name=self.id, process=self)
+        #self.add_endpoint(self._rpc_server)
 
         self.event_publisher = EventPublisher(OT.DatasetModified)
         self.stored_value_manager = StoredValueManager(self.container)
