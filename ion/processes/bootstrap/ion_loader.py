@@ -110,7 +110,7 @@ CANDIDATE_UI_ASSETS = 'http://userexperience.oceanobservatories.org/database-exp
 
 ### this master URL has the latest changes, but if columns have changed, it may no longer work with this commit of the loader code
 # Edit the doc here: https://docs.google.com/spreadsheet/ccc?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE
-MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
+MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgGScp7mjYjydDFwTUdwcDFONmhQMERFMjM2RXJWUFE&output=xls"
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
 #Apr15 TESTED_DOC =  "https://docs.google.com/spreadsheet/pub?key=0ArFEMmslwP1ddHY3Zmlza0h5LXZINmpXRXNvRXBkdEE&output=xls"
@@ -133,6 +133,7 @@ DEFAULT_CATEGORIES = [
     'Contact',                          # in memory only - all scenarios loaded
     'User',
     'Org',
+    'MyFriendDan',
     #'Policy',
     'UserRole',                         # no resource - association only
     'CoordinateSystem',                 # in memory only - all scenarios loaded
@@ -1175,6 +1176,22 @@ class IONLoader(ImmediateProcess):
                 userrow["contact_id"] = "ORG_CONTACT"
                 self._load_User(userrow)
 
+    def _load_MyFriendDan(self, row):
+        print "Loading MyFriendDan"
+        from uuid import uuid4
+        log.trace("Loading external org")
+        print row
+
+        #res_obj = self._create_object_from_row("ExternalFacility", row, "dan/")
+        res_obj = None
+
+        # Do checking and stuff
+        # Create will return a unique id which we don't have yet
+        res_id = uuid4().hex
+
+        #res_id = create_external_facility(res_obj, headers=headers)
+        self._register_id(row[COL_ID], res_id, res_obj)
+
     def _load_Org(self, row):
         log.trace("Loading Org (ID=%s)", row[COL_ID])
         self.row_count += 1
@@ -1965,7 +1982,7 @@ Reason: %s
                         context.lookup_value = name
                         context.document_key = lookup_value
             
-            self._manage_qc(context, qc, row, sname, tm)
+            #self._manage_qc(context, qc, row, sname, tm)
 
         except TypeError as e:
             log.exception(e.message)
