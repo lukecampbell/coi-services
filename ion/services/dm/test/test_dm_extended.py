@@ -1383,18 +1383,16 @@ def rotate_v(u,v,theta):
 
 
         
-    @attr("UTIL")
-    def test_qc_stuff(self):
+    def make_instrument_data_product(self):
         data_product_id = self.make_ctd_data_product()
 
-        testapp = TestApp(service_gateway_app)
-        self.add_tempwat_qc(data_product_id)
         data_product = self.resource_registry.read(data_product_id)
         data_product.qc_glblrng = 'applicable'
         self.resource_registry.update(data_product)
         site = InstrumentSite(name='example site', reference_designator='CP01CNSM-MFD37-03-CTDBPD000')
         site_id, _ = self.resource_registry.create(site)
         device = InstrumentDevice(name='a deployable device')
+        device.ooi_property_number = 'ooi-inst-1'
         device_id = self.instrument_management.create_instrument_device(device)
         model = InstrumentModel(name='SBE37')
         model_id = self.instrument_management.create_instrument_model(model)
@@ -1413,6 +1411,13 @@ def rotate_v(u,v,theta):
         
         self.data_acquisition_management.register_instrument(device_id)
         self.data_acquisition_management.assign_data_product(device_id, data_product_id)
+        return data_product_id
+
+    @attr("UTIL")
+    def test_qc_stuff(self):
+        testapp = TestApp(service_gateway_app)
+        data_product_id = self.make_instrument_data_product()
+        self.add_tempwat_qc(data_product_id)
         tempwat_id = self.make_tempwat(data_product_id)
 
         # Post the lookup tables
@@ -1499,4 +1504,13 @@ def rotate_v(u,v,theta):
 
 
 
+
+    @attr("UTIL")
+    def test_cal_stuff(self):
+        testapp = TestApp(service_gateway_app)
+        data_product_id = self.make_instrument_data_product()
+
+        upload_files = [('file', 'test_data/sample_calibrations.csv')]
+        result = testapp.post('/ion-service/upload/calibration', upload_files=upload_files, status=200)
+        breakpoint(locals(), globals())
 
