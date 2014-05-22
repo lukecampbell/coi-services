@@ -105,6 +105,14 @@ class TestDMExtended(DMTestCase):
 
 
 
+
+    def preload_shokorimonaku(self):
+        config = DotDict()
+        config.cfg = 'res/preload/r2_ioc/config/ooi_beta.yml'
+        config.ooiuntil = '4/1/2014'
+        config.path = 'master'
+        self.container.spawn_process('preloader', 'ion.processes.bootstrap.ion_loader', 'IONLoader', config)
+
     def stop_ctdgv(self):
         self.container.spawn_process('import_dataset', 'ion.processes.data.import_dataset', 'ImportDataset', {'op':'stop', 'instrument':'CTDGV'})
 
@@ -1985,3 +1993,7 @@ def rotate_v(u,v,theta):
 
 
         breakpoint(locals(), globals()) 
+
+    def test_shokorimonaku(self):
+        self.preload_shokorimonaku()
+
