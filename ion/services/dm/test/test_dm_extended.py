@@ -107,11 +107,49 @@ class TestDMExtended(DMTestCase):
 
 
     def preload_shokorimonaku(self):
+        print "Preloading OOI Beta up to 4/1/2014"
         config = DotDict()
         config.cfg = 'res/preload/r2_ioc/config/ooi_beta.yml'
         config.ooiuntil = '4/1/2014'
         config.path = 'master'
         self.container.spawn_process('preloader', 'ion.processes.bootstrap.ion_loader', 'IONLoader', config)
+
+        print "--------------------------------------------------------------------------------"
+        print "Cloning Devices"
+        print "--------------------------------------------------------------------------------"
+        config = DotDict()
+        config.op = 'clone_device'
+        config.preload_id = 'CP02PMUO-WP001_PD,CP02PMUI-WP001_PD'
+        config.clone_id='CL1'
+        config.recuse=True
+        config.verbose=True
+        config.cfg = 'test_data/deployments/clone_attributes.csv'
+        self.container.spawn_process('agentctrl', 'ion.agents.agentctrl','AgentControl', config)
+        print "--------------------------------------------------------------------------------"
+        print "Cloning Deployments"
+        print "--------------------------------------------------------------------------------"
+
+        config = DotDict()
+        config.op = 'clone_deployment'
+        config.preload_id='CP02PMUO-WP001_DEP,CP02PMUI-WP001_DEP'
+        config.clone_id = 'CL1'
+        config.recurse=True
+        config.verbose=True
+        config.cfg = 'test_data/deployments/clone_attributes.csv'
+        self.container.spawn_process('agentctrl', 'ion.agents.agentctrl','AgentControl', config)
+
+
+
+
+        '''
+        echo 'Cloning (recursively) devices, agent instances, data products for CP02PMUO-WP001 and CP02PMUI-WP001'
+        bin/pycc -x ion.agents.agentctrl.AgentControl op=clone_device preload_id="CP02PMUO-WP001_PD,CP02PMUI-WP001_PD" clone_id=CL1 recurse=True verbose=True cfg=$thisdir/clone_attributes.csv
+                
+        echo 'Cloning deployments for CP02PMUO-WP001 and CP02PMUI-WP001'
+        bin/pycc -x ion.agents.agentctrl.AgentControl op=clone_deployment preload_id="CP02PMUO-WP001_DEP,CP02PMUI-WP001_DEP" clone_id=CL1 recurse=True verbose=True cfg=$thisdir/clone_attributes.csv
+                
+        '''
+
 
     def stop_ctdgv(self):
         self.container.spawn_process('import_dataset', 'ion.processes.data.import_dataset', 'ImportDataset', {'op':'stop', 'instrument':'CTDGV'})
@@ -1994,6 +2032,9 @@ def rotate_v(u,v,theta):
 
         breakpoint(locals(), globals()) 
 
+
+    @attr("UTIL")
     def test_shokorimonaku(self):
         self.preload_shokorimonaku()
+        breakpoint(locals(), globals())
 
