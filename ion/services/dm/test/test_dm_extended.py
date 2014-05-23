@@ -107,10 +107,20 @@ class TestDMExtended(DMTestCase):
 
 
     def preload_shokorimonaku(self):
+        print "--------------------------------------------------------------------------------"
         print "Preloading OOI Beta up to 4/1/2014"
+        print "--------------------------------------------------------------------------------"
         config = DotDict()
         config.cfg = 'res/preload/r2_ioc/config/ooi_beta.yml'
         config.ooiuntil = '4/1/2014'
+        config.path = 'master'
+        self.container.spawn_process('preloader', 'ion.processes.bootstrap.ion_loader', 'IONLoader', config)
+
+        print "--------------------------------------------------------------------------------"
+        print "Preloading R2.2"
+        print "--------------------------------------------------------------------------------"
+        config = DotDict()
+        config.cfg = 'res/preload/r2_ioc/config/ooi_inc_r22.yml'
         config.path = 'master'
         self.container.spawn_process('preloader', 'ion.processes.bootstrap.ion_loader', 'IONLoader', config)
 
@@ -123,18 +133,20 @@ class TestDMExtended(DMTestCase):
         config.clone_id='CL1'
         config.recuse=True
         config.verbose=True
+        config.failfast=True
         config.cfg = 'test_data/deployments/clone_attributes.csv'
         self.container.spawn_process('agentctrl', 'ion.agents.agentctrl','AgentControl', config)
+
         print "--------------------------------------------------------------------------------"
         print "Cloning Deployments"
         print "--------------------------------------------------------------------------------"
-
         config = DotDict()
         config.op = 'clone_deployment'
         config.preload_id='CP02PMUO-WP001_DEP,CP02PMUI-WP001_DEP'
         config.clone_id = 'CL1'
         config.recurse=True
         config.verbose=True
+        config.failfast=True
         config.cfg = 'test_data/deployments/clone_attributes.csv'
         self.container.spawn_process('agentctrl', 'ion.agents.agentctrl','AgentControl', config)
 
