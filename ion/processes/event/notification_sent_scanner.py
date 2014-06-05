@@ -56,7 +56,7 @@ class NotificationSentScanner(object):
             counts_updated = True
             # disable notification if notification_max reached
             if self.counts[user_id][notification_id] >= notification_max:
-                notifications.append(_disable_notification(notification_id))
+                notifications.append(self._disable_notification(notification_id))
         # update notifications that have been disabled
         if notifications:
             self._update_notification(notifications)
@@ -81,10 +81,10 @@ class NotificationSentScanner(object):
     def _persist_counts(self):
         """ persist the counts to ObjectStore """
         try:
-            persisted_counts = self.object_store.read('notification_counts')
+            persisted_counts = self.object_store.read_doc('notification_counts')
         except NotFound:
             persisted_counts = {}
-            self.object_store.create('notification_counts', persisted_counts)
+            self.object_store.create_doc(persisted_counts, 'notification_counts')
         # Counter objects cannot be persisted, convert to standard dicts
         persisted_counts.update({k:dict(v) for k,v in self.counts.items()})
         self.object_store.update(persisted_counts)
@@ -92,18 +92,18 @@ class NotificationSentScanner(object):
 
     def _reset_counts(self):
         """ clears the persisted counts """
-        self.object_store.delete('notification_counts')
-        self.object_store.create('notification_counts',{})
+        self.object_store.delete_doc('notification_counts')
+        self.object_store.create_doc({},'notification_counts')
         self._initialize_counts() # NOTE: NotificationRequest boolean disabled_by_system reset by UNS
         self.next_midnight = self._midnight(days=1)
 
-    def _disable_notification(notification_id):
+    def _disable_notification(self,notification_id):
         """ set the disabled_by_system boolean to True """
-        notification = self.object_store.read(notification_id)
+        notification = self.object_store.read_doc(notification_id)
         notification.disabled_by_system = True
         return notification
 
-    def _update_notifications(notifications):
+    def _update_notifications(self, notifications):
         """ updates notifications and publishes ReloadUserInfoEvent """
         self.resource_registry.update_mult(notifications)
         self.event_publisher.publish_event(event_type=OT.ReloadUserInfoEvent)
