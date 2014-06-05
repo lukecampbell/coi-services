@@ -54,7 +54,8 @@ class EventPersister(StandaloneProcess):
         self.process_plugins = {}
         for plugin_name, plugin_cls, plugin_args in PROCESS_PLUGINS:
             try:
-                plugin = named_any(plugin_cls)(**plugin_args)
+                plugin_method = named_any(plugin_cls)
+                plugin = plugin_method(self, **plugin_args)
                 self.process_plugins[plugin_name]= plugin
                 log.info("Loaded event processing plugin %s (%s)", plugin_name, plugin_cls)
             except Exception as ex:

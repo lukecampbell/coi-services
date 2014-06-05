@@ -29,7 +29,7 @@ class DeviceStateManager(object):
         state_list = self.store.read_doc_mult(state_ids, strict=False)
         return state_list
 
-    def process_events(self, event_list):
+    def process_events(self, process, event_list):
         """Callback interface for event processor"""
         self.persist_events_state(event_list)
 
