@@ -1383,6 +1383,24 @@ def rotate_v(u,v,theta):
                 "units" : "1"
             }
         }
+
+
+        # Make an instrument device
+        dev = InstrumentDevice(name='Titanic')
+        dev_id = self.instrument_management.create_instrument_device(dev)
+
+        # Make a model for the device
+        model = InstrumentModel(name='Olympic-class Ocean Carrier')
+        model_id = self.instrument_management.create_instrument_model(model)
+
+        # Link the device to the model
+        self.instrument_management.assign_instrument_model_to_instrument_device(model_id, dev_id)
+
+        # Now create the site
+        site = InstrumentSite(name='Ocean Floor', reference_designator='MGY')
+        site_id, _ = self.resource_registry.create(site)
+        self.resource_registry.create_association(site_id, 'hasModel', model_id)
+
         # Make the device data product
         device_data_product = DataProduct('The Gibson') # Category defaults to device
         device_data_product_id = self.data_product_from_params(device_data_product, params)
@@ -1413,7 +1431,4 @@ def rotate_v(u,v,theta):
         data_product_id = self.data_product_management.create_data_product(data_product, stream_definition_id=stream_def_id)
         
         return data_product_id
-
-
-
 
