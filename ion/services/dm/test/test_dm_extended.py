@@ -234,6 +234,7 @@ class TestDMExtended(DMTestCase):
         breakpoint(locals(), globals())
 
     
+    @unittest.skip("Array types are temporarily unsupported")
     @attr('INT',group='dm')
     def test_array_visualization(self):
         data_product_id, stream_def_id = self.make_array_data_product()
@@ -285,6 +286,7 @@ class TestDMExtended(DMTestCase):
              'viz_product_type': 'google_dt'}
         self.assertEquals(rdt['google_dt_components'][0], testval)
 
+    @unittest.skip("Array types temporarily unsupported")
     @attr('INT',group='dm')
     def test_array_flow_paths(self):
         params = {
@@ -661,6 +663,7 @@ class TestDMExtended(DMTestCase):
         breakpoint(locals(), globals())
 
 
+    @unittest.skip('Array types temporarily unsupported')
     @attr("PRELOAD")
     def test_prest(self):
         '''
