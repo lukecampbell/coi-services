@@ -1542,11 +1542,22 @@ def rotate_v(u,v,theta):
         # The Deployment
         #--------------------------------------------------------------------------------
 
+
         # Create a port configuration in the deployment that links the instrument device to the 
         # instrument site
         port1 = PlatformPort(reference_designator='CE09OSSM-RID27-01-CTDBPC000', port_type=PortTypeEnum.PAYLOAD, ip_address='10.90.27.1')
         port_assignments = {res['ctd1'] : port1}
         deployment = Deployment(name='Summer Deployment', type='Cabled', port_assignments=port_assignments)
+
+        from ion.services.sa.observatory.deployment_util import DeploymentUtil
+
+        dep_util = DeploymentUtil(self.container)
+        start_date = datetime(2014,5,1)
+        end_date   = datetime(2014,11,1)
+        start_date = calendar.timegm(start_date.timetuple())
+        end_date   = calendar.timegm(end_date.timetuple())
+
+        dep_util.set_temporal_constraint(deployment, str(start_date), str(end_date))
 
         res['deployment1'] = self.observatory_management.create_deployment(deployment, res['platform_site'], res['platform1'])
         self.observatory_management.activate_deployment(res['deployment1'])
@@ -1554,6 +1565,7 @@ def rotate_v(u,v,theta):
     @attr("UTIL")
     def test_cabled_deployments(self):
         self.initialize_deployment_resources()
+        breakpoint(locals(), globals())
 
 
 
