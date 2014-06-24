@@ -1503,7 +1503,9 @@ def rotate_v(u,v,theta):
         res["ctd1"] = self.instrument_management.create_instrument_device(device)
         self.instrument_management.assign_instrument_model_to_instrument_device(res["ctd_model"], res["ctd1"])
         # Link Platform -> CTD1
-        self.resource_registry.create_association(res["platform1"], PRED.hasDevice, res["ctd1"])
+        self.instrument_management.assign_instrument_device_to_platform_device(res['ctd1'], res['platform1'])
+        # Register the instrument as a producer and assign a data product
+        self.data_acquisition_management.register_instrument(res['ctd1'])
         
         # ---
 
@@ -1518,7 +1520,63 @@ def rotate_v(u,v,theta):
         self.instrument_management.assign_instrument_model_to_instrument_device(res["ctd_model"], res["ctd2"])
 
         # Link the platform device to the instrument device
-        self.resource_registry.create_association(res['platform2'], PRED.hasDevice, res['ctd2'])
+        self.instrument_management.assign_instrument_device_to_platform_device(res['ctd2'], res['platform2'])
+
+        #--------------------------------------------------------------------------------
+        # The Data Product for the CTD and the Platform
+        #--------------------------------------------------------------------------------
+
+        params = {
+            "time" : {
+                "parameter_type" : "quantity",
+                "value_encoding" : "float64",
+                "display_name" : "Time",
+                "description" : "Timestamp",
+                "units" : "seconds since 1900-01-01"
+            },
+            "temperature" : {
+                "parameter_type" : "quantity",
+                "value_encoding" : "float32",
+                "display_name" : "Calibrated Seawater Temperature",
+                "description" : "Calibrated Seawater Temperature",
+                "units" : "deg_C"
+            }
+        }
+
+        # Make the data product for the CTD
+        data_product = DataProduct('CTD Parsed for CTD1')
+        res['ctd_data1'] = self.data_product_from_params(data_product, params)
+
+        # Register the data product as a product of CTD1
+        self.data_acquisition_management.assign_data_product(res['ctd1'], res['ctd_data1'])
+
+        # Activate it
+        self.data_product_management.activate_data_product_persistence(res['ctd_data1'])
+
+        params = {
+            "time" : {
+                "parameter_type" : "quantity",
+                "value_encoding" : "float64",
+                "display_name" : "Time",
+                "description" : "Timestamp",
+                "units" : "seconds since 1900-01-01"
+            },
+            "battery" : {
+                "parameter_type" : "quantity",
+                "value_encoding" : "float32",
+                "display_name" : "Battery Voltage",
+                "description" : "Platform Battery Voltage",
+                "units" : "volts"
+            }
+        }
+
+        # Make the Platform Engineering Data Product
+        data_product = DataProduct('Platform Engineering Data')
+        res['eng_data'] = self.data_product_from_params(data_product, params)
+
+        # Register the data product as a result of the Platform
+        self.data_acquisition_management.assign_data_product(res['platform1'], res['eng_data'])
+
 
         #--------------------------------------------------------------------------------
         # The Site(s)
@@ -1536,6 +1594,35 @@ def rotate_v(u,v,theta):
 
         # Link the platform site to the ctd site
         self.resource_registry.create_association(res["platform_site"], PRED.hasSite, res["site1"])
+
+        #--------------------------------------------------------------------------------
+        # And now, the site data product for the CTD on port 1
+        #--------------------------------------------------------------------------------
+
+        params = {
+            "time" : {
+                "parameter_type" : "quantity",
+                "value_encoding" : "float64",
+                "display_name" : "Time",
+                "description" : "Timestamp",
+                "units" : "seconds since 1900-01-01"
+            },
+            "temperature" : {
+                "parameter_type" : "quantity",
+                "value_encoding" : "float32",
+                "display_name" : "Calibrated Seawater Temperature",
+                "description" : "Calibrated Seawater Temperature",
+                "units" : "deg_C"
+            }
+        }
+
+        # Make the data product for the CTD
+        data_product = DataProduct('CTD Parsed for Deployed CTD at Site', category=DataProductTypeEnum.SITE)
+        res['site_data'] = self.data_product_from_params(data_product, params)
+        self.resource_registry.create_association(res['site1'], PRED.hasOutputProduct, res['site_data'])
+        
+        # Make a dataset for it
+        self.data_product_management.create_dataset_for_data_product(res['site_data'])
 
 
         #--------------------------------------------------------------------------------
@@ -1562,9 +1649,19 @@ def rotate_v(u,v,theta):
         res['deployment1'] = self.observatory_management.create_deployment(deployment, res['platform_site'], res['platform1'])
         self.observatory_management.activate_deployment(res['deployment1'])
 
+        return res
+
     @attr("UTIL")
     def test_cabled_deployments(self):
-        self.initialize_deployment_resources()
+        res = self.initialize_deployment_resources()
+        from pprint import pprint
+        pprint(res)
+        rdt = self.ph.rdt_for_data_product(res['ctd_data1'])
+        rdt['time'] = np.array([0, 1])
+        rdt['temperature'] = np.array([10, 11])
+        dataset_monitor = DatasetMonitor(data_product_id=res['ctd_data1'])
+        self.ph.publish_rdt_to_data_product(res['ctd_data1'], rdt)
+        self.assertTrue(dataset_monitor.wait())
         breakpoint(locals(), globals())
 
 
