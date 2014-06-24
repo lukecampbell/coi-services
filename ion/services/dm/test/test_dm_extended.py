@@ -1468,6 +1468,95 @@ def rotate_v(u,v,theta):
         event.set()
         g.join()
 
+
+    def initialize_deployment_resources(self):
+        from interface.objects import PlatformDevice, InstrumentDevice, PlatformSite, InstrumentSite, PlatformPort, PlatformModel
+        res = {}
+
+        #--------------------------------------------------------------------------------
+        # The Devices
+        #--------------------------------------------------------------------------------
+
+        #----------------------------------------
+        # Models
+        #----------------------------------------
+
+        # A model to represent a CTDBP
+        model = InstrumentModel(name='SBE37')
+        res["ctd_model"] = self.instrument_management.create_instrument_model(model)
+
+        # A model to represent the Platform
+        model = PlatformModel(name='Endurance WA Offshore (500 m) Surface Mooring')
+        res['platform_model'] = self.instrument_management.create_platform_model(model)
+        
+        #----------------------------------------
+        # Devices
+        #----------------------------------------
+
+        # Platform that will contain the CTD
+        platform = PlatformDevice("Platform1")
+        res["platform1"] = self.instrument_management.create_platform_device(platform)
+        self.instrument_management.assign_platform_model_to_platform_device(res['platform_model'], res['platform1'])
+
+        # A CTDBP for this platform
+        device = InstrumentDevice("CTD1")
+        res["ctd1"] = self.instrument_management.create_instrument_device(device)
+        self.instrument_management.assign_instrument_model_to_instrument_device(res["ctd_model"], res["ctd1"])
+        # Link Platform -> CTD1
+        self.resource_registry.create_association(res["platform1"], PRED.hasDevice, res["ctd1"])
+        
+        # ---
+
+        # A differnet platform
+        platform = PlatformDevice(name="Platform2")
+        res["platform2"] = self.instrument_management.create_platform_device(platform)
+        self.instrument_management.assign_platform_model_to_platform_device(res['platform_model'], res['platform2'])
+
+        # Another or different CTD than the aforementioned one
+        device = InstrumentDevice("CTD2")
+        res["ctd2"] = self.instrument_management.create_instrument_device(device)
+        self.instrument_management.assign_instrument_model_to_instrument_device(res["ctd_model"], res["ctd2"])
+
+        # Link the platform device to the instrument device
+        self.resource_registry.create_association(res['platform2'], PRED.hasDevice, res['ctd2'])
+
+        #--------------------------------------------------------------------------------
+        # The Site(s)
+        #--------------------------------------------------------------------------------
+        
+        # The site (conceptual place) where the platform can be deployed
+        platform_site = PlatformSite("Platform Site", reference_designator='CE09OSSM-RID27')
+        res["platform_site"] = self.observatory_management.create_platform_site(platform_site)
+        self.observatory_management.assign_platform_model_to_platform_site(res['platform_model'], res['platform_site'])
+
+        # The site for where the CTD can be deployed
+        site = InstrumentSite("CTD Port 1", reference_designator='CE09OSSM-RID27-01-CTDBPC000')
+        res["site1"] = self.observatory_management.create_instrument_site(site)
+        self.observatory_management.assign_instrument_model_to_instrument_site(res['ctd_model'], res['site1'])
+
+        # Link the platform site to the ctd site
+        self.resource_registry.create_association(res["platform_site"], PRED.hasSite, res["site1"])
+
+
+        #--------------------------------------------------------------------------------
+        # The Deployment
+        #--------------------------------------------------------------------------------
+
+        # Create a port configuration in the deployment that links the instrument device to the 
+        # instrument site
+        port1 = PlatformPort(reference_designator='CE09OSSM-RID27-01-CTDBPC000', port_type=PortTypeEnum.PAYLOAD, ip_address='10.90.27.1')
+        port_assignments = {res['ctd1'] : port1}
+        deployment = Deployment(name='Summer Deployment', type='Cabled', port_assignments=port_assignments)
+
+        res['deployment1'] = self.observatory_management.create_deployment(deployment, res['platform_site'], res['platform1'])
+        self.observatory_management.activate_deployment(res['deployment1'])
+
+    @attr("UTIL")
+    def test_cabled_deployments(self):
+        self.initialize_deployment_resources()
+
+
+
     @attr("INT")
     def test_complex_stubs(self):
         params = {
@@ -1486,6 +1575,9 @@ def rotate_v(u,v,theta):
                 "units" : "1"
             }
         }
+
+
+
         # Make the device data product
         device_data_product = DataProduct('The Gibson') # Category defaults to device
         device_data_product_id = self.data_product_from_params(device_data_product, params)
